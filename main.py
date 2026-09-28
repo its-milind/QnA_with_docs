@@ -1,6 +1,7 @@
 import os
 import tempfile
 import asyncio
+import docx2txt
 from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -60,7 +61,7 @@ def load_file(file_path: str, filename: str):
     if ext == ".txt":
         return TextLoader(file_path).load()
     elif ext == ".docx":
-        return Docx2txtLoader(file_path).load()
+        return docx2txt.process(file_path)
     elif ext == ".pdf":
         return PyPDFLoader(file_path).load()
     else:
