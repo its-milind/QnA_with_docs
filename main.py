@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.messages import SystemMessage, HumanMessage
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain.chat_models import init_chat_model
 
 #Pinecone Client
@@ -37,7 +37,7 @@ app.add_middleware(
 )
 
 # Initialize Clients
-embedding_model = HuggingFaceEmbeddings(model="all-MiniLM-L6-v2")
+embedding_model = HuggingFaceEndpointEmbeddings(model="sentence-transformers/all-MiniLM-L6-v2")
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(PINECONE_INDEX_NAME)
 
