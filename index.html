@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Document Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation & Status -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-icon">⚡</div>
+                <h2>DocuRAG AI</h2>
+            </div>
+
+            <div class="upload-section">
+                <h3>Document Indexer</h3>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-icon">📁</div>
+                    <p class="drop-text">Drag & drop document or <span>browse</span></p>
+                    <p class="drop-sub">PDF, DOCX, TXT supported</p>
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden>
+                </div>
+                <div class="progress-bar" id="uploadProgress">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <h3>Active Knowledge Base</h3>
+                <div id="statusContent" class="status-content">
+                    <span class="badge warning">No Document Loaded</span>
+                    <p class="muted-text">Upload a document to start asking questions.</p>
+                </div>
+            </div>
+
+            <button id="clearBtn" class="btn btn-secondary" style="display: none;">
+                🗑️ Clear Active Index
+            </button>
+        </aside>
+
+        <!-- Main Chat Panel -->
+        <main class="chat-container">
+            <header class="chat-header">
+                <div class="header-info">
+                    <h1>Document Intelligence Assistant</h1>
+                    <p>Powered by LangChain, Groq LLM & FAISS Vector Search</p>
+                </div>
+            </header>
+
+            <div class="messages-area" id="messagesArea">
+                <div class="message system-msg">
+                    <div class="avatar">🤖</div>
+                    <div class="msg-content">
+                        Hello! Upload a PDF, DOCX, or TXT file using the sidebar, and I will answer your questions using precise context retrieved from your document.
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <form id="chatForm" class="input-form">
+                    <input
+                        type="text"
+                        id="queryInput"
+                        placeholder="Ask a question based on your uploaded document..."
+                        autocomplete="off"
+                        disabled
+                    />
+                    <button type="submit" id="sendBtn" class="btn btn-primary" disabled>
+                        <span>Send</span> ➔
+                    </button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+
+        // 1. Manage Unique Session ID
+        let sessionId = sessionStorage.getItem('rag_session_id');
+        if (!sessionId) {
+            sessionId = crypto.randomUUID();
+            sessionStorage.setItem('rag_session_id', sessionId);
+        }
+
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressFill = document.getElementById('progressFill');
+        const statusContent = document.getElementById('statusContent');
+        const clearBtn = document.getElementById('clearBtn');
+        const chatForm = document.getElementById('chatForm');
+        const queryInput = document.getElementById('queryInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const messagesArea = document.getElementById('messagesArea');
+
+        // Drag & Drop Setup
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('active');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('active');
+            });
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFileUpload(files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFileUpload(e.target.files[0]);
+        });
+
+        // Upload File with X-Session-ID header
+        async function handleFileUpload(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    uploadProgress.style.display = 'block';
+    progressFill.style.width = '30%';
+
+    try {
+        const response = await fetch(`${API_URL}/upload`, {
+            method: 'POST',
+            headers: { 'X-Session-ID': sessionId },
+            body: formData
+        });
+
+        progressFill.style.width = '70%';
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server returned status ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        progressFill.style.width = '100%';
+        setTimeout(() => { uploadProgress.style.display = 'none'; progressFill.style.width = '0%'; }, 500);
+
+        updateStatusUI({
+            is_loaded: true,
+            filename: data.filename,
+            chunk_count: data.chunks,
+            page_count: data.pages
+        });
+
+        appendMessage('system', `Document "${data.filename}" indexed for your active session (${data.chunks} chunks).`);
+
+    } catch (err) {
+        alert('Upload Error: ' + err.message);
+        uploadProgress.style.display = 'none';
+    }
+}
+<!--        async function handleFileUpload(file) {-->
+<!--            const formData = new FormData();-->
+<!--            formData.append('file', file);-->
+
+<!--            uploadProgress.style.display = 'block';-->
+<!--            progressFill.style.width = '30%';-->
+
+<!--            try {-->
+<!--                const response = await fetch(`${API_URL}/upload`, {-->
+<!--                    method: 'POST',-->
+<!--                    headers: { 'X-Session-ID': sessionId },-->
+<!--                    body: formData-->
+<!--                });-->
+
+<!--                progressFill.style.width = '70%';-->
+
+<!--                const data = await response.json();-->
+<!--                if (!response.ok) throw new Error(data.detail || 'Upload failed');-->
+
+<!--                progressFill.style.width = '100%';-->
+<!--                setTimeout(() => { uploadProgress.style.display = 'none'; progressFill.style.width = '0%'; }, 500);-->
+
+<!--                updateStatusUI({-->
+<!--                    is_loaded: true,-->
+<!--                    filename: data.filename,-->
+<!--                    chunk_count: data.chunks,-->
+<!--                    page_count: data.pages-->
+<!--                });-->
+
+<!--                appendMessage('system', `Document "${data.filename}" indexed for your active session (${data.chunks} chunks).`);-->
+
+<!--            } catch (err) {-->
+<!--                alert('Upload Error: ' + err.message);-->
+<!--                uploadProgress.style.display = 'none';-->
+<!--            }-->
+<!--        }-->
+
+        // Check active session status
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${API_URL}/status`, {
+                    headers: { 'X-Session-ID': sessionId }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    updateStatusUI(data);
+                }
+            } catch (e) {
+                console.warn('Backend server not reachable at startup.');
+            }
+        }
+
+        function updateStatusUI(status) {
+            if (status.is_loaded) {
+                statusContent.innerHTML = `
+                    <span class="badge success">Active Session</span>
+                    <p class="file-name">📄 ${status.filename}</p>
+                    <div class="stats">
+                        <span><strong>Pages:</strong> ${status.page_count}</span>
+                        <span><strong>Chunks:</strong> ${status.chunk_count}</span>
+                    </div>
+                `;
+                clearBtn.style.display = 'block';
+                queryInput.disabled = false;
+                sendBtn.disabled = false;
+            } else {
+                statusContent.innerHTML = `
+                    <span class="badge warning">No Document Loaded</span>
+                    <p class="muted-text">Upload a document to start asking questions.</p>
+                `;
+                clearBtn.style.display = 'none';
+                queryInput.disabled = true;
+                sendBtn.disabled = true;
+            }
+        }
+
+        // Clear Session Vector Store
+        clearBtn.addEventListener('click', async () => {
+            try {
+                await fetch(`${API_URL}/clear`, {
+                    method: 'DELETE',
+                    headers: { 'X-Session-ID': sessionId }
+                });
+                updateStatusUI({ is_loaded: false });
+                appendMessage('system', 'Active index cleared.');
+            } catch (err) {
+                alert('Error clearing index.');
+            }
+        });
+
+        // Chat Form Submission
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = queryInput.value.trim();
+            if (!query) return;
+
+            appendMessage('user', query);
+            queryInput.value = '';
+
+            const loadingId = appendLoadingMessage();
+
+            try {
+                const res = await fetch(`${API_URL}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Session-ID': sessionId
+                    },
+                    body: JSON.stringify({ query: query, k: 3 })
+                });
+
+                const data = await res.json();
+                removeLoadingMessage(loadingId);
+
+                if (!res.ok) throw new Error(data.detail || 'Failed to answer query');
+
+                appendMessage('bot', data.answer, data.sources);
+
+            } catch (err) {
+                removeLoadingMessage(loadingId);
+                appendMessage('system', `Error: ${err.message}`);
+            }
+        });
+
+        // Terminate session when leaving page
+        window.addEventListener('pagehide', () => {
+            const blob = new Blob([JSON.stringify({ session_id: sessionId })], { type: 'application/json' });
+            navigator.sendBeacon(`${API_URL}/terminate-session`, blob);
+        });
+
+        // UI Message Rendering
+        function appendMessage(role, text, sources = null) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}-msg`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.innerHTML = role === 'user' ? '👤' : (role === 'bot' ? '🤖' : '⚙️');
+
+            const content = document.createElement('div');
+            content.className = 'msg-content';
+            content.innerHTML = text.replace(/\n/g, '<br>');
+
+            if (sources && sources.length > 0) {
+                const sourcesContainer = document.createElement('div');
+                sourcesContainer.className = 'sources-container';
+
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'sources-toggle';
+                toggleBtn.innerText = `🔍 View ${sources.length} Context Chunks`;
+                toggleBtn.onclick = () => {
+                    const list = sourcesContainer.querySelector('.sources-list');
+                    list.classList.toggle('open');
+                };
+
+                const sourcesList = document.createElement('div');
+                sourcesList.className = 'sources-list';
+
+                sources.forEach((src, idx) => {
+                    const chunk = document.createElement('div');
+                    chunk.className = 'source-chunk';
+                    chunk.innerHTML = `<strong>Chunk ${idx + 1}</strong> (Page ${src.metadata.page ?? 'N/A'}):<br><em>"${src.page_content.slice(0, 300)}..."</em>`;
+                    sourcesList.appendChild(chunk);
+                });
+
+                sourcesContainer.appendChild(toggleBtn);
+                sourcesContainer.appendChild(sourcesList);
+                content.appendChild(sourcesContainer);
+            }
+
+            msgDiv.appendChild(avatar);
+            msgDiv.appendChild(content);
+            messagesArea.appendChild(msgDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function appendLoadingMessage() {
+            const id = 'loading-' + Date.now();
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message bot-msg';
+            msgDiv.id = id;
+
+            msgDiv.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="msg-content loading-dots">
+                    Retrieving vector chunks and generating response<span>.</span><span>.</span><span>.</span>
+                </div>
+            `;
+            messagesArea.appendChild(msgDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+            return id;
+        }
+
+        function removeLoadingMessage(id) {
+            const elem = document.getElementById(id);
+            if (elem) elem.remove();
+        }
+
+        checkStatus();
+    </script>
+</body>
+</html>

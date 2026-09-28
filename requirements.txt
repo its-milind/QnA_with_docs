@@ -1,0 +1,15 @@
+fastapi
+langchain-classic
+langchain-community
+langchain-core
+langchain-huggingface
+langchain-groq
+langchain
+langchain-text-splitters
+pinecone-client
+pydantic
+python-dotenv
+typing_extensions
+uuid_utils
+uvicorn
+python-multipart
