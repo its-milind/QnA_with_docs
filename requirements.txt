@@ -13,3 +13,4 @@ typing_extensions
 uuid_utils
 uvicorn
 python-multipart
+docx2txt
