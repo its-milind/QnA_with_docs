@@ -6,7 +6,7 @@ langchain-huggingface
 langchain-groq
 langchain
 langchain-text-splitters
-pinecone-client
+pinecone
 pydantic
 python-dotenv
 typing_extensions
